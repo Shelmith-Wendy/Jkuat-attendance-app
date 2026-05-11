@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1022428888210",
+    "project_id": "jkuat-student-attendance",
+    "storage_bucket": "jkuat-student-attendance.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1022428888210:android:a582f64e0b694679687a4b",
+        "android_client_info": {
+          "package_name": "com.example.myapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAQsvRynrRwj2bHm6orYXd-Bz591dsryU4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
