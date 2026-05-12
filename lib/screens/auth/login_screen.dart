@@ -1,7 +1,9 @@
+// lib/screens/auth/login_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../core/theme.dart';
-import '../../core/constants.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 
@@ -14,10 +16,12 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
+  final _emailController    = TextEditingController();
   final _passwordController = TextEditingController();
+
   bool _obscurePassword = true;
-  bool _isLoading = false;
+  bool _rememberMe      = false;
+  bool _isLoading       = false;
 
   @override
   void dispose() {
@@ -26,6 +30,7 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  // ── Sign in ────────────────────────────────────────────────────────────────
   Future<void> _signIn() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
@@ -34,181 +39,293 @@ class _LoginScreenState extends State<LoginScreen> {
         _emailController.text.trim(),
         _passwordController.text,
       );
-      final user = await FirestoreService().getUser(credential.user!.uid);
+      final user =
+          await FirestoreService().getUser(credential.user!.uid);
       if (!mounted) return;
-      if (user?.role == 'lecturer') {
-        context.go('/lecturer-home');
-      } else {
-        context.go('/student-home');
-      }
+      if (user == null) throw Exception('User record not found.');
+      user.role == 'lecturer'
+          ? context.go('/lecturer-home')
+          : context.go('/student-home');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.toString())));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_friendlyError(e.toString())),
+          backgroundColor: accentRed,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  void _showForgotPassword() {
-    final resetEmailController = TextEditingController();
+  // ── Password reset dialog ──────────────────────────────────────────────────
+  void _showResetDialog() {
+    final resetController = TextEditingController();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Reset Password'),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12)),
+        title: const Text('Reset Password',
+            style: TextStyle(
+                color: primaryGreen, fontWeight: FontWeight.bold)),
         content: TextField(
-          controller: resetEmailController,
-          decoration: const InputDecoration(labelText: 'Email'),
+          controller: resetController,
           keyboardType: TextInputType.emailAddress,
+          decoration: const InputDecoration(
+            labelText: 'Enter your email',
+            prefixIcon: Icon(Icons.email_outlined),
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancel'),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () async {
-              await AuthService().sendPasswordReset(
-                resetEmailController.text.trim(),
-              );
-              if (ctx.mounted) Navigator.pop(ctx);
+              if (resetController.text.trim().isNotEmpty) {
+                await AuthService()
+                    .sendPasswordReset(resetController.text.trim());
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Password reset email sent.'),
+                      backgroundColor: lightGreen,
+                    ),
+                  );
+                }
+              }
             },
-            child: const Text('Send'),
+            child: const Text('Send Reset Link'),
           ),
         ],
       ),
     );
   }
 
+  // ── Friendly Firebase error messages ───────────────────────────────────────
+  String _friendlyError(String raw) {
+    if (raw.contains('user-not-found')) {
+      return 'No account found for that email.';
+    }
+    if (raw.contains('wrong-password') || raw.contains('invalid-credential')) {
+      return 'Incorrect password. Please try again.';
+    }
+    if (raw.contains('too-many-requests')) {
+      return 'Too many attempts. Please try again later.';
+    }
+    if (raw.contains('network-request-failed')) {
+      return 'Network error. Check your connection.';
+    }
+    return 'Sign in failed. Please try again.';
+  }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              Container(
-                height: 220,
-                color: primaryGreen,
-                width: double.infinity,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Image.asset(
-                      'assets/images/jkuat_logo.png',
-                      width: 80,
-                      height: 80,
-                      errorBuilder: (_, __, ___) =>
-                          const Icon(Icons.school, size: 80, color: white),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      appName,
-                      style: TextStyle(
-                        color: white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Text(
-                        universityName,
-                        style: const TextStyle(color: white, fontSize: 11),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ],
-                ),
+      backgroundColor: white,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: Column(
+                children: [
+                  _buildHeader(),
+                  _buildFormCard(),
+                  const SizedBox(height: 32),
+                ],
               ),
-              Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Header: logo + greeting ────────────────────────────────────────────────
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 48, 24, 28),
+      child: Column(
+        children: [
+          // JKUAT logo / fallback
+          Image.asset(
+            'assets/images/jkuat_logo.png',
+            width: 90,
+            height: 90,
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => Container(
+              width: 90,
+              height: 90,
+              decoration: const BoxDecoration(
+                color: primaryGreen,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.school, size: 52, color: white),
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'Hi, welcome back',
+            style: TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+              color: primaryGreen,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Please fill in your details to log in',
+            style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Form card ──────────────────────────────────────────────────────────────
+  Widget _buildFormCard() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Card(
+        elevation: 3,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16)),
+        shadowColor: Colors.black.withOpacity(0.10),
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // ── Email ────────────────────────────────────────────────
+                TextFormField(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(
+                    labelText: 'Username / Email',
+                    hintText: 'Student No / Employee No',
+                    prefixIcon: Icon(Icons.person_outline),
+                  ),
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty)
+                          ? 'Email is required'
+                          : null,
+                ),
+                const SizedBox(height: 16),
+
+                // ── Password ─────────────────────────────────────────────
+                TextFormField(
+                  controller: _passwordController,
+                  obscureText: _obscurePassword,
+                  textInputAction: TextInputAction.done,
+                  onFieldSubmitted: (_) => _signIn(),
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    hintText: 'Enter your Password',
+                    prefixIcon: const Icon(Icons.lock_outline),
+                    suffixIcon: IconButton(
+                      onPressed: () => setState(
+                          () => _obscurePassword = !_obscurePassword),
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        color: _obscurePassword
+                            ? Colors.grey
+                            : primaryGreen,
+                      ),
+                    ),
+                  ),
+                  validator: (v) =>
+                      (v == null || v.isEmpty)
+                          ? 'Password is required'
+                          : null,
+                ),
+                const SizedBox(height: 8),
+
+                // ── Remember me + Forgot password ─────────────────────────
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Welcome Back',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: darkText,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Sign in to continue',
-                      style: TextStyle(fontSize: 13, color: Colors.grey),
-                    ),
-                    const SizedBox(height: 24),
-                    TextFormField(
-                      controller: _emailController,
-                      decoration: const InputDecoration(
-                        labelText: 'Email',
-                        prefixIcon: Icon(Icons.email_outlined),
-                      ),
-                      keyboardType: TextInputType.emailAddress,
-                      validator: (v) => v!.isEmpty ? 'Enter your email' : null,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _passwordController,
-                      obscureText: _obscurePassword,
-                      decoration: InputDecoration(
-                        labelText: 'Password',
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obscurePassword
-                                ? Icons.visibility
-                                : Icons.visibility_off,
-                          ),
-                          onPressed: () => setState(
-                            () => _obscurePassword = !_obscurePassword,
-                          ),
-                        ),
-                      ),
-                      validator: (v) =>
-                          v!.isEmpty ? 'Enter your password' : null,
-                    ),
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: _showForgotPassword,
-                        child: const Text('Forgot Password?'),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _signIn,
-                        child: _isLoading
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(color: white),
-                              )
-                            : const Text('Sign In'),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text("Don't have an account?  "),
-                        TextButton(
-                          onPressed: () => context.go('/register'),
-                          child: const Text('Register'),
+                        Checkbox(
+                          value: _rememberMe,
+                          activeColor: primaryGreen,
+                          onChanged: (v) =>
+                              setState(() => _rememberMe = v ?? false),
                         ),
+                        const Text('Remember me',
+                            style: TextStyle(fontSize: 13)),
                       ],
                     ),
+                    TextButton(
+                      onPressed: _showResetDialog,
+                      style: TextButton.styleFrom(
+                          foregroundColor: primaryGreen,
+                          padding: EdgeInsets.zero),
+                      child: const Text('Forgot Password?',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500)),
+                    ),
                   ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 20),
+
+                // ── Sign In button ────────────────────────────────────────
+                SizedBox(
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _signIn,
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                                color: white, strokeWidth: 2))
+                        : const Text('Sign In'),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // ── Sign Up link ──────────────────────────────────────────
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      "Don't have an account ?  ",
+                      style: TextStyle(
+                          color: Colors.grey[600], fontSize: 13),
+                    ),
+                    TextButton(
+                      onPressed: () => context.go('/register'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: primaryGreen,
+                        padding: EdgeInsets.zero,
+                        minimumSize: Size.zero,
+                        tapTargetSize:
+                            MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text('Sign Up',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
