@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import '../models/attendance_model.dart';
 import 'firestore_service.dart';
@@ -12,17 +13,23 @@ class GpsService {
       return permission == LocationPermission.whileInUse ||
           permission == LocationPermission.always;
     } catch (e) {
-      print(e);
+      debugPrint('GPS error: $e');
       return false;
     }
   }
 
   Future<Position?> getCurrentPosition() async {
     try {
-      return await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high);
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      if (position.isMocked) {
+        debugPrint('Security: mocked location detected');
+        return null;
+      }
+      return position;
     } catch (e) {
-      print(e);
+      debugPrint('GPS error: $e');
       return null;
     }
   }
@@ -50,7 +57,9 @@ class GpsService {
     if (!permitted) return "Location permission denied.";
 
     final position = await getCurrentPosition();
-    if (position == null) return "Could not get your location.";
+    if (position == null) {
+      return "Could not get your location. Ensure mock location apps are disabled.";
+    }
 
     final withinFence = isWithinGeofence(
         position.latitude, position.longitude,

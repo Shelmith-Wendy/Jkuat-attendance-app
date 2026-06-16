@@ -1,4 +1,7 @@
+import 'dart:io';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -10,7 +13,7 @@ class AuthService {
         password: password,
       );
     } catch (e) {
-      print(e);
+      debugPrint(e.toString());
       rethrow;
     }
   }
@@ -22,7 +25,7 @@ class AuthService {
         password: password,
       );
     } catch (e) {
-      print(e);
+      debugPrint(e.toString());
       rethrow;
     }
   }
@@ -31,7 +34,7 @@ class AuthService {
     try {
       await _auth.signOut();
     } catch (e) {
-      print(e);
+      debugPrint(e.toString());
       rethrow;
     }
   }
@@ -40,8 +43,25 @@ class AuthService {
     try {
       await _auth.sendPasswordResetEmail(email: email);
     } catch (e) {
-      print(e);
+      debugPrint(e.toString());
       rethrow;
+    }
+  }
+
+  Future<String> getDeviceId() async {
+    try {
+      final plugin = DeviceInfoPlugin();
+      if (Platform.isAndroid) {
+        final info = await plugin.androidInfo;
+        return info.id;
+      } else if (Platform.isIOS) {
+        final info = await plugin.iosInfo;
+        return info.identifierForVendor ?? '';
+      }
+      return '';
+    } catch (e) {
+      debugPrint('DeviceInfo error: $e');
+      return '';
     }
   }
 

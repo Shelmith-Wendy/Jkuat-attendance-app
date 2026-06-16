@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
 import '../models/class_model.dart';
 import '../models/attendance_model.dart';
@@ -13,7 +14,7 @@ class FirestoreService {
       if (!doc.exists) return null;
       return UserModel.fromMap(doc.id, doc.data()!);
     } catch (e) {
-      print(e);
+      debugPrint(e.toString());
       rethrow;
     }
   }
@@ -22,7 +23,7 @@ class FirestoreService {
     try {
       await _db.collection('users').doc(user.id).set(user.toMap());
     } catch (e) {
-      print(e);
+      debugPrint(e.toString());
       rethrow;
     }
   }
@@ -36,7 +37,7 @@ class FirestoreService {
       if (query.docs.isEmpty) return null;
       return UserModel.fromMap(query.docs.first.id, query.docs.first.data());
     } catch (e) {
-      print(e);
+      debugPrint(e.toString());
       rethrow;
     }
   }
@@ -52,7 +53,7 @@ class FirestoreService {
           .map((doc) => ClassModel.fromMap(doc.id, doc.data()))
           .toList();
     } catch (e) {
-      print(e);
+      debugPrint(e.toString());
       rethrow;
     }
   }
@@ -68,7 +69,7 @@ class FirestoreService {
           .map((doc) => ClassModel.fromMap(doc.id, doc.data()))
           .toList();
     } catch (e) {
-      print(e);
+      debugPrint(e.toString());
       rethrow;
     }
   }
@@ -77,7 +78,7 @@ class FirestoreService {
     try {
       await _db.collection('classes').add(classModel.toMap());
     } catch (e) {
-      print(e);
+      debugPrint(e.toString());
       rethrow;
     }
   }
@@ -86,7 +87,16 @@ class FirestoreService {
     try {
       await _db.collection('classes').doc(classId).update(updates);
     } catch (e) {
-      print(e);
+      debugPrint(e.toString());
+      rethrow;
+    }
+  }
+
+  Future<void> updateUserDeviceId(String uid, String deviceId) async {
+    try {
+      await _db.collection('users').doc(uid).update({'deviceId': deviceId});
+    } catch (e) {
+      debugPrint(e.toString());
       rethrow;
     }
   }
@@ -95,7 +105,21 @@ class FirestoreService {
     try {
       await _db.collection('classes').doc(classId).delete();
     } catch (e) {
-      print(e);
+      debugPrint(e.toString());
+      rethrow;
+    }
+  }
+
+  Future<ClassModel?> getClassByJoinCode(String joinCode) async {
+    try {
+      final query = await _db
+          .collection('classes')
+          .where('joinCode', isEqualTo: joinCode)
+          .get();
+      if (query.docs.isEmpty) return null;
+      return ClassModel.fromMap(query.docs.first.id, query.docs.first.data());
+    } catch (e) {
+      debugPrint(e.toString());
       rethrow;
     }
   }
@@ -106,7 +130,7 @@ class FirestoreService {
         'enrolledStudents': FieldValue.arrayUnion([studentId]),
       });
     } catch (e) {
-      print(e);
+      debugPrint(e.toString());
       rethrow;
     }
   }
@@ -117,7 +141,7 @@ class FirestoreService {
         'enrolledClasses': FieldValue.arrayUnion([classId]),
       });
     } catch (e) {
-      print(e);
+      debugPrint(e.toString());
       rethrow;
     }
   }
@@ -137,7 +161,7 @@ class FirestoreService {
           .get();
       return query.docs.isNotEmpty;
     } catch (e) {
-      print(e);
+      debugPrint(e.toString());
       rethrow;
     }
   }
@@ -146,7 +170,7 @@ class FirestoreService {
     try {
       await _db.collection('attendance').add(attendance.toMap());
     } catch (e) {
-      print(e);
+      debugPrint(e.toString());
       rethrow;
     }
   }
@@ -162,7 +186,7 @@ class FirestoreService {
           .map((doc) => AttendanceModel.fromMap(doc.id, doc.data()))
           .toList();
     } catch (e) {
-      print(e);
+      debugPrint(e.toString());
       rethrow;
     }
   }
@@ -182,7 +206,7 @@ class FirestoreService {
           .map((doc) => AttendanceModel.fromMap(doc.id, doc.data()))
           .toList();
     } catch (e) {
-      print(e);
+      debugPrint(e.toString());
       rethrow;
     }
   }

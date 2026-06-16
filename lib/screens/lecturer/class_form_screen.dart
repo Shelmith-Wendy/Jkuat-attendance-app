@@ -1,9 +1,10 @@
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/theme.dart';
 import '../../models/class_model.dart';
-import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/gps_service.dart';
@@ -20,16 +21,20 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _courseCodeController = TextEditingController();
   final _courseNameController = TextEditingController();
-  final _roomNameController = TextEditingController();
-  final _radiusController = TextEditingController();
-  final _latController = TextEditingController();
-  final _lngController = TextEditingController();
-  final _regNumberController = TextEditingController();
+  final _roomNameController   = TextEditingController();
+  final _radiusController     = TextEditingController();
+  final _latController        = TextEditingController();
+  final _lngController        = TextEditingController();
   List<Map<String, dynamic>> _scheduleSlots = [];
-  final List<UserModel> _enrolledStudents = [];
   bool _isLoading = false;
 
   bool get _isEdit => widget.existingClass != null;
+
+  String _generateJoinCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    final rng = Random.secure();
+    return List.generate(6, (_) => chars[rng.nextInt(chars.length)]).join();
+  }
 
   @override
   void initState() {
@@ -38,10 +43,10 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
       final c = widget.existingClass!;
       _courseCodeController.text = c.courseCode;
       _courseNameController.text = c.courseName;
-      _roomNameController.text = c.location['roomName'] ?? '';
-      _radiusController.text = c.location['radiusMeters']?.toString() ?? '';
-      _latController.text = c.location['lat']?.toString() ?? '';
-      _lngController.text = c.location['lng']?.toString() ?? '';
+      _roomNameController.text   = c.location['roomName'] ?? '';
+      _radiusController.text     = c.location['radiusMeters']?.toString() ?? '';
+      _latController.text        = c.location['lat']?.toString() ?? '';
+      _lngController.text        = c.location['lng']?.toString() ?? '';
       _scheduleSlots = List<Map<String, dynamic>>.from(c.schedule);
     }
   }
@@ -54,7 +59,6 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
     _radiusController.dispose();
     _latController.dispose();
     _lngController.dispose();
-    _regNumberController.dispose();
     super.dispose();
   }
 
@@ -65,28 +69,8 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
       _lngController.text = position.longitude.toString();
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Could not get location')));
-      }
-    }
-  }
-
-  Future<void> _addStudent() async {
-    final reg = _regNumberController.text.trim();
-    if (reg.isEmpty) return;
-    final student = await FirestoreService().getUserByRegNumber(reg);
-    if (student != null && !_enrolledStudents.any((s) => s.id == student.id)) {
-      setState(() {
-        _enrolledStudents.add(student);
-        _regNumberController.clear();
-      });
-    } else {
-      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No student found with that registration number'),
-          ),
+          const SnackBar(content: Text('Could not get location')),
         );
       }
     }
@@ -102,20 +86,29 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
     }
     setState(() => _isLoading = true);
     try {
+      final joinCode = _isEdit
+          ? widget.existingClass!.joinCode
+          : _generateJoinCode();
+
       final classData = ClassModel(
         id: _isEdit ? widget.existingClass!.id : '',
-        courseCode: _courseCodeController.text.trim(),
+        courseCode: _courseCodeController.text.trim().toUpperCase(),
         courseName: _courseNameController.text.trim(),
         lecturerId: AuthService().currentUserId!,
-        enrolledStudents: _isEdit ? widget.existingClass!.enrolledStudents : [],
+        joinCode: joinCode,
+        enrolledStudents: _isEdit
+            ? widget.existingClass!.enrolledStudents
+            : [],
         location: {
-          'roomName': _roomNameController.text.trim(),
+          'roomName':     _roomNameController.text.trim(),
           'radiusMeters': double.parse(_radiusController.text),
-          'lat': double.parse(_latController.text),
-          'lng': double.parse(_lngController.text),
+          'lat':          double.parse(_latController.text),
+          'lng':          double.parse(_lngController.text),
         },
-        schedule: _scheduleSlots,
-        createdAt: _isEdit ? widget.existingClass!.createdAt : DateTime.now(),
+        schedule:  _scheduleSlots,
+        createdAt: _isEdit
+            ? widget.existingClass!.createdAt
+            : DateTime.now(),
       );
 
       if (_isEdit) {
@@ -123,36 +116,96 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
           widget.existingClass!.id,
           classData.toMap(),
         );
+        if (mounted) context.pop();
       } else {
-        final docRef = await FirebaseFirestore.instance
+        await FirebaseFirestore.instance
             .collection('classes')
             .add(classData.toMap());
-        for (final student in _enrolledStudents) {
-          await FirestoreService().addStudentToClass(docRef.id, student.id);
-          await FirestoreService().addClassToStudent(docRef.id, student.id);
-        }
+        if (mounted) _showJoinCodeDialog(joinCode, classData.courseName);
       }
-      if (mounted) context.pop();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString())),
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  void _showJoinCodeDialog(String joinCode, String courseName) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Class Created!',
+          style: TextStyle(color: primaryGreen, fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Share this join code with your $courseName students:'),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              decoration: BoxDecoration(
+                color: surfaceGrey,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: primaryGreen, width: 2),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    joinCode,
+                    style: const TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: primaryGreen,
+                      letterSpacing: 6,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.copy, color: primaryGreen),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: joinCode));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Join code copied!')),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Students enter this code in the app to join your class.',
+              style: TextStyle(color: Colors.grey, fontSize: 12),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              context.pop();
+            },
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
+  }
+
   String _dayName(int day) {
     const days = {
-      1: 'Monday',
-      2: 'Tuesday',
-      3: 'Wednesday',
-      4: 'Thursday',
-      5: 'Friday',
-      6: 'Saturday',
-      7: 'Sunday',
+      1: 'Monday', 2: 'Tuesday', 3: 'Wednesday',
+      4: 'Thursday', 5: 'Friday', 6: 'Saturday', 7: 'Sunday',
     };
     return days[day] ?? 'Monday';
   }
@@ -168,15 +221,13 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Section 1 - Basic Info
-              const Text(
-                'Basic Info',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
+              const Text('Basic Info',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _courseCodeController,
                 decoration: const InputDecoration(labelText: 'Course Code'),
+                textCapitalization: TextCapitalization.characters,
                 validator: (v) => v!.isEmpty ? 'Required' : null,
               ),
               const SizedBox(height: 12),
@@ -193,11 +244,8 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
               ),
               const SizedBox(height: 20),
 
-              // Section 2 - Geofence
-              const Text(
-                'Geofence Radius',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
+              const Text('Geofence Radius',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _radiusController,
@@ -216,11 +264,8 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
               ),
               const SizedBox(height: 20),
 
-              // Section 3 - GPS
-              const Text(
-                'Classroom GPS Coordinates',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
+              const Text('Classroom GPS Coordinates',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -228,7 +273,7 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
                     child: TextFormField(
                       controller: _latController,
                       decoration: const InputDecoration(labelText: 'Latitude'),
-                      keyboardType: TextInputType.number,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
                       validator: (v) {
                         if (v!.isEmpty) return 'Required';
                         if (double.tryParse(v) == null) return 'Invalid';
@@ -241,7 +286,7 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
                     child: TextFormField(
                       controller: _lngController,
                       decoration: const InputDecoration(labelText: 'Longitude'),
-                      keyboardType: TextInputType.number,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
                       validator: (v) {
                         if (v!.isEmpty) return 'Required';
                         if (double.tryParse(v) == null) return 'Invalid';
@@ -259,14 +304,11 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
               ),
               const SizedBox(height: 20),
 
-              // Section 4 - Schedule
-              const Text(
-                'Class Schedule',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
+              const Text('Class Schedule',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               const SizedBox(height: 8),
               ..._scheduleSlots.asMap().entries.map((entry) {
-                final i = entry.key;
+                final i    = entry.key;
                 final slot = entry.value;
                 return Card(
                   margin: const EdgeInsets.only(bottom: 8),
@@ -276,20 +318,15 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
                       children: [
                         DropdownButtonFormField<int>(
                           initialValue: slot['dayOfWeek'] as int,
-                          decoration: const InputDecoration(
-                            labelText: 'Day of Week',
-                          ),
+                          decoration: const InputDecoration(labelText: 'Day of Week'),
                           items: [1, 2, 3, 4, 5, 6, 7]
-                              .map(
-                                (d) => DropdownMenuItem(
-                                  value: d,
-                                  child: Text(_dayName(d)),
-                                ),
-                              )
+                              .map((d) => DropdownMenuItem(
+                                    value: d,
+                                    child: Text(_dayName(d)),
+                                  ))
                               .toList(),
-                          onChanged: (v) => setState(
-                            () => _scheduleSlots[i]['dayOfWeek'] = v,
-                          ),
+                          onChanged: (v) =>
+                              setState(() => _scheduleSlots[i]['dayOfWeek'] = v),
                         ),
                         const SizedBox(height: 8),
                         Row(
@@ -302,16 +339,12 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
                                     initialTime: TimeOfDay.now(),
                                   );
                                   if (t != null) {
-                                    setState(
-                                      () => _scheduleSlots[i]['startTime'] =
-                                          '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}',
-                                    );
+                                    setState(() => _scheduleSlots[i]['startTime'] =
+                                        '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}');
                                   }
                                 },
                                 child: InputDecorator(
-                                  decoration: const InputDecoration(
-                                    labelText: 'Start Time',
-                                  ),
+                                  decoration: const InputDecoration(labelText: 'Start Time'),
                                   child: Text(slot['startTime'] ?? '08:00'),
                                 ),
                               ),
@@ -325,25 +358,18 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
                                     initialTime: TimeOfDay.now(),
                                   );
                                   if (t != null) {
-                                    setState(
-                                      () => _scheduleSlots[i]['endTime'] =
-                                          '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}',
-                                    );
+                                    setState(() => _scheduleSlots[i]['endTime'] =
+                                        '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}');
                                   }
                                 },
                                 child: InputDecorator(
-                                  decoration: const InputDecoration(
-                                    labelText: 'End Time',
-                                  ),
+                                  decoration: const InputDecoration(labelText: 'End Time'),
                                   child: Text(slot['endTime'] ?? '10:00'),
                                 ),
                               ),
                             ),
                             IconButton(
-                              icon: const Icon(
-                                Icons.remove_circle_outline,
-                                color: accentRed,
-                              ),
+                              icon: const Icon(Icons.remove_circle_outline, color: accentRed),
                               onPressed: () =>
                                   setState(() => _scheduleSlots.removeAt(i)),
                             ),
@@ -355,52 +381,12 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
                 );
               }),
               OutlinedButton(
-                onPressed: () => setState(
-                  () => _scheduleSlots.add({
-                    'dayOfWeek': 1,
-                    'startTime': '08:00',
-                    'endTime': '10:00',
-                  }),
-                ),
+                onPressed: () => setState(() => _scheduleSlots.add({
+                      'dayOfWeek': 1,
+                      'startTime': '08:00',
+                      'endTime':   '10:00',
+                    })),
                 child: const Text('+ Add Schedule Slot'),
-              ),
-              const SizedBox(height: 20),
-
-              // Section 5 - Students
-              const Text(
-                'Enrolled Students',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _regNumberController,
-                      decoration: const InputDecoration(
-                        labelText: 'Registration Number',
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.person_add),
-                    onPressed: _addStudent,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                children: _enrolledStudents
-                    .map(
-                      (s) => Chip(
-                        label: Text('${s.name} (${s.regNumber})'),
-                        deleteIcon: const Icon(Icons.close, size: 14),
-                        onDeleted: () =>
-                            setState(() => _enrolledStudents.remove(s)),
-                      ),
-                    )
-                    .toList(),
               ),
               const SizedBox(height: 24),
 
@@ -410,7 +396,7 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
                   onPressed: _isLoading ? null : _saveClass,
                   child: _isLoading
                       ? const CircularProgressIndicator(color: white)
-                      : const Text('Save Class'),
+                      : Text(_isEdit ? 'Update Class' : 'Create Class'),
                 ),
               ),
               const SizedBox(height: 24),

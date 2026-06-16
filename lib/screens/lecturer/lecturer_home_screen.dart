@@ -32,7 +32,7 @@ class _LecturerHomeScreenState extends State<LecturerHomeScreen> {
       _currentUser = await FirestoreService().getUser(uid);
       _classes = await FirestoreService().getLecturerClasses(uid);
     } catch (e) {
-      print(e);
+      debugPrint(e.toString());
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -48,7 +48,9 @@ class _LecturerHomeScreenState extends State<LecturerHomeScreen> {
             icon: const Icon(Icons.logout),
             onPressed: () async {
               await AuthService().signOut();
-              if (mounted) context.go('/login');
+              // ignore: use_build_context_synchronously
+              if (!mounted) return;
+              context.go('/login');
             },
           ),
         ],
@@ -149,7 +151,9 @@ class _LecturerHomeScreenState extends State<LecturerHomeScreen> {
               ),
               onPressed: () async {
                 await AuthService().signOut();
-                if (mounted) context.go('/login');
+                // ignore: use_build_context_synchronously
+              if (!mounted) return;
+              context.go('/login');
               },
               child: const Text('Sign Out'),
             ),

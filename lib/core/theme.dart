@@ -1,6 +1,7 @@
 // lib/core/theme.dart
 
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 // ── Brand colours ──────────────────────────────────────────────────────────
 const Color primaryGreen = Color(0xFF1B5E20);
@@ -23,7 +24,7 @@ final ThemeData jkuatTheme = ThemeData(
     surface: white,
   ),
   scaffoldBackgroundColor: white,
-  fontFamily: 'Roboto',
+  textTheme: GoogleFonts.poppinsTextTheme(),
 
   // ── AppBar ────────────────────────────────────────────────────────────────
   appBarTheme: const AppBarTheme(
@@ -101,7 +102,7 @@ final ThemeData jkuatTheme = ThemeData(
   cardTheme: CardThemeData(
     elevation: 3,
     color: white,
-    shadowColor: Colors.black.withOpacity(0.10),
+    shadowColor: Colors.black.withAlpha(26),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
   ),
 

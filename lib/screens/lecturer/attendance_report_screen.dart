@@ -56,7 +56,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
 
       _selectedDate = _sessionDates.isNotEmpty ? _sessionDates.first : null;
     } catch (e) {
-      print(e);
+      debugPrint(e.toString());
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

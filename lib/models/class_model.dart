@@ -6,6 +6,7 @@ class ClassModel {
   final String courseCode;
   final String courseName;
   final String lecturerId;
+  final String joinCode;
   final List<String> enrolledStudents;
   final Map<String, dynamic> location;
   final List<Map<String, dynamic>> schedule;
@@ -16,6 +17,7 @@ class ClassModel {
     required this.courseCode,
     required this.courseName,
     required this.lecturerId,
+    this.joinCode = '',
     this.enrolledStudents = const [],
     required this.location,
     this.schedule = const [],
@@ -28,6 +30,7 @@ class ClassModel {
       courseCode: map['courseCode'] ?? '',
       courseName: map['courseName'] ?? '',
       lecturerId: map['lecturerId'] ?? '',
+      joinCode: map['joinCode'] ?? '',
       enrolledStudents: List<String>.from(map['enrolledStudents'] ?? []),
       location: Map<String, dynamic>.from(map['location'] ?? {}),
       schedule: List<Map<String, dynamic>>.from(map['schedule'] ?? []),
@@ -40,6 +43,7 @@ class ClassModel {
       'courseCode': courseCode,
       'courseName': courseName,
       'lecturerId': lecturerId,
+      'joinCode': joinCode,
       'enrolledStudents': enrolledStudents,
       'location': location,
       'schedule': schedule,

@@ -30,7 +30,6 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // ── Sign in ────────────────────────────────────────────────────────────────
   Future<void> _signIn() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
@@ -39,10 +38,47 @@ class _LoginScreenState extends State<LoginScreen> {
         _emailController.text.trim(),
         _passwordController.text,
       );
-      final user =
-          await FirestoreService().getUser(credential.user!.uid);
+      final uid = credential.user!.uid;
+      final user = await FirestoreService().getUser(uid);
       if (!mounted) return;
       if (user == null) throw Exception('User record not found.');
+
+      // ── Device fingerprint check ──────────────────────────────────────
+      final currentDeviceId = await AuthService().getDeviceId();
+      if (user.deviceId.isEmpty) {
+        // First login on any device — register this device
+        await FirestoreService().updateUserDeviceId(uid, currentDeviceId);
+      } else if (user.deviceId != currentDeviceId) {
+        // Different device detected — block and sign out
+        await AuthService().signOut();
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => AlertDialog(
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+            title: const Text('Unrecognised Device',
+                style: TextStyle(
+                    color: accentRed, fontWeight: FontWeight.bold)),
+            content: const Text(
+              'Your account was last used on a different device. '
+              'Contact your lecturer if this is a mistake.',
+            ),
+            actions: [
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: accentRed),
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+      // ── Navigate based on role ────────────────────────────────────────
+      if (!mounted) return;
       user.role == 'lecturer'
           ? context.go('/lecturer-home')
           : context.go('/student-home');
@@ -60,7 +96,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // ── Password reset dialog ──────────────────────────────────────────────────
   void _showResetDialog() {
     final resetController = TextEditingController();
     showDialog(
@@ -107,24 +142,16 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // ── Friendly Firebase error messages ───────────────────────────────────────
   String _friendlyError(String raw) {
-    if (raw.contains('user-not-found')) {
-      return 'No account found for that email.';
-    }
+    if (raw.contains('user-not-found')) return 'No account found for that email.';
     if (raw.contains('wrong-password') || raw.contains('invalid-credential')) {
       return 'Incorrect password. Please try again.';
     }
-    if (raw.contains('too-many-requests')) {
-      return 'Too many attempts. Please try again later.';
-    }
-    if (raw.contains('network-request-failed')) {
-      return 'Network error. Check your connection.';
-    }
+    if (raw.contains('too-many-requests')) return 'Too many attempts. Please try again later.';
+    if (raw.contains('network-request-failed')) return 'Network error. Check your connection.';
     return 'Sign in failed. Please try again.';
   }
 
-  // ── Build ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -148,13 +175,11 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // ── Header: logo + greeting ────────────────────────────────────────────────
   Widget _buildHeader() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 48, 24, 28),
       child: Column(
         children: [
-          // JKUAT logo / fallback
           Image.asset(
             'assets/images/jkuat_logo.png',
             width: 90,
@@ -190,7 +215,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // ── Form card ──────────────────────────────────────────────────────────────
   Widget _buildFormCard() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -198,7 +222,7 @@ class _LoginScreenState extends State<LoginScreen> {
         elevation: 3,
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16)),
-        shadowColor: Colors.black.withOpacity(0.10),
+        shadowColor: Colors.black.withAlpha(26),
         child: Padding(
           padding: const EdgeInsets.all(28),
           child: Form(
@@ -206,7 +230,6 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // ── Email ────────────────────────────────────────────────
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -216,14 +239,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     hintText: 'Student No / Employee No',
                     prefixIcon: Icon(Icons.person_outline),
                   ),
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty)
-                          ? 'Email is required'
-                          : null,
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Username / Email is required'
+                      : null,
                 ),
                 const SizedBox(height: 16),
-
-                // ── Password ─────────────────────────────────────────────
                 TextFormField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
@@ -240,20 +260,15 @@ class _LoginScreenState extends State<LoginScreen> {
                         _obscurePassword
                             ? Icons.visibility_off_outlined
                             : Icons.visibility_outlined,
-                        color: _obscurePassword
-                            ? Colors.grey
-                            : primaryGreen,
+                        color: _obscurePassword ? Colors.grey : primaryGreen,
                       ),
                     ),
                   ),
-                  validator: (v) =>
-                      (v == null || v.isEmpty)
-                          ? 'Password is required'
-                          : null,
+                  validator: (v) => (v == null || v.isEmpty)
+                      ? 'Password is required'
+                      : null,
                 ),
                 const SizedBox(height: 8),
-
-                // ── Remember me + Forgot password ─────────────────────────
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -276,14 +291,11 @@ class _LoginScreenState extends State<LoginScreen> {
                           padding: EdgeInsets.zero),
                       child: const Text('Forgot Password?',
                           style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500)),
+                              fontSize: 13, fontWeight: FontWeight.w500)),
                     ),
                   ],
                 ),
                 const SizedBox(height: 20),
-
-                // ── Sign In button ────────────────────────────────────────
                 SizedBox(
                   height: 48,
                   child: ElevatedButton(
@@ -298,15 +310,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-
-                // ── Sign Up link ──────────────────────────────────────────
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
                       "Don't have an account ?  ",
-                      style: TextStyle(
-                          color: Colors.grey[600], fontSize: 13),
+                      style: TextStyle(color: Colors.grey[600], fontSize: 13),
                     ),
                     TextButton(
                       onPressed: () => context.go('/register'),
@@ -314,13 +323,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         foregroundColor: primaryGreen,
                         padding: EdgeInsets.zero,
                         minimumSize: Size.zero,
-                        tapTargetSize:
-                            MaterialTapTargetSize.shrinkWrap,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                       child: const Text('Sign Up',
                           style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600)),
+                              fontSize: 13, fontWeight: FontWeight.w600)),
                     ),
                   ],
                 ),

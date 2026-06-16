@@ -50,7 +50,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
         _currentUser?.enrolledClasses ?? [],
       );
     } catch (e) {
-      print(e);
+      debugPrint(e.toString());
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -66,15 +66,15 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'Ask your lecturer for the course code and enter it below.',
+              'Ask your lecturer for the 6-character join code and enter it below.',
               style: TextStyle(color: Colors.grey, fontSize: 13),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: codeController,
               decoration: const InputDecoration(
-                labelText: 'Course Code',
-                hintText: 'e.g. SCT2413',
+                labelText: 'Join Code',
+                hintText: 'e.g. JK4X9R',
               ),
               textCapitalization: TextCapitalization.characters,
             ),

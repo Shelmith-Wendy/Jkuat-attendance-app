@@ -7,6 +7,7 @@ class UserModel {
   final String role;
   final String regNumber;
   final String staffId;
+  final String deviceId;
   final List<String> enrolledClasses;
   final DateTime createdAt;
 
@@ -17,6 +18,7 @@ class UserModel {
     required this.role,
     this.regNumber = '',
     this.staffId = '',
+    this.deviceId = '',
     this.enrolledClasses = const [],
     required this.createdAt,
   });
@@ -29,6 +31,7 @@ class UserModel {
       role: map['role'] ?? 'student',
       regNumber: map['regNumber'] ?? '',
       staffId: map['staffId'] ?? '',
+      deviceId: map['deviceId'] ?? '',
       enrolledClasses: List<String>.from(map['enrolledClasses'] ?? []),
       createdAt: (map['createdAt'] as Timestamp).toDate(),
     );
@@ -41,6 +44,7 @@ class UserModel {
       'role': role,
       'regNumber': regNumber,
       'staffId': staffId,
+      'deviceId': deviceId,
       'enrolledClasses': enrolledClasses,
       'createdAt': Timestamp.fromDate(createdAt),
     };

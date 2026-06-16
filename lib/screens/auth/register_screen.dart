@@ -108,14 +108,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   // ── Friendly Firebase errors ───────────────────────────────────────────────
   String _friendlyError(String raw) {
-    if (raw.contains('email-already-in-use'))
+    if (raw.contains('email-already-in-use')) {
       return 'An account with that email already exists.';
-    if (raw.contains('weak-password'))
+    }
+    if (raw.contains('weak-password')) {
       return 'Password is too weak. Use at least 8 characters.';
-    if (raw.contains('invalid-email'))
+    }
+    if (raw.contains('invalid-email')) {
       return 'That email address is not valid.';
-    if (raw.contains('network-request-failed'))
+    }
+    if (raw.contains('network-request-failed')) {
       return 'Network error. Check your connection.';
+    }
     return 'Registration failed. Please try again.';
   }
 
