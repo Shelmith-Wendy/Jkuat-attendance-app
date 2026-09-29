@@ -6,7 +6,7 @@ A modern, efficient, and reliable solution for managing and tracking class atten
 
 This Flutter-based mobile application aims to replace traditional paper-based attendance systems with a streamlined digital process. Lecturers can easily create and manage class sessions, while students can quickly mark their attendance, typically through QR code scanning. The system will provide real-time data, generate attendance reports, and reduce administrative overhead.
 
-## ✨ Planned Features
+##  Planned Features
 
 -   **User Roles:**
     -   **Student:** View registered courses, mark attendance, and view personal attendance history.
